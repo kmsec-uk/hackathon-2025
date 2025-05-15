@@ -25,12 +25,32 @@ class GHSA:
     """
     Representation of a connection to GitHub Security Advisories.
 
-    Example:
+    You can pass an aiohttp.ClientSession, or it will create a new one.
+
+    Attributes
+    ---------
+    
+    advisories list[dict]
+        A list of GHSA advisories
+
+
+    Example
+    ----------
 
     ```python
+    import asyncio
+    import aiohttp
 
+    async def get():
+        apikey = os.environ["GITHUB_API_KEY"]
+        async with aiohttp.ClientSession(trust_env=True) as s:
+            ghsa = GHSA(apikey=apikey, session=s)
+            await ghsa.get_recent()
+            for a in ghsa.advisories:
+                print(a["cve_id"])
+
+    asyncio.run(get())
     ```
-    
     """
     apikey: str
     session: aiohttp.ClientSession | None
@@ -67,7 +87,7 @@ class CVE:
     """
     Representation of a CVE.
     
-    To get an enrichment of a CVE
+    To get an enrichment of a CVE, use the get_data() function.
     """
     cve_id: str
     session: aiohttp.ClientSession | None
@@ -117,12 +137,15 @@ async def generate_test_data():
     # generate test data
     async with aiohttp.ClientSession(trust_env=True) as session:
         ghsa = GHSA(apikey=apikey, session=session)
+        # get recent advisories
         await ghsa.get_recent()
         for advisory in ghsa.advisories:
             print(f'{advisory["published_at"]}: {advisory["cve_id"]}')
             cve = CVE(advisory["cve_id"])
+            # get enrichment
             await cve.get_data()
             advisory["_enrichment"] = cve.strings
+            # get sentiment on enrichments
             ss = sid.polarity_scores(" ".join(cve.strings))
             advisory["_sentiment"] = ss["compound"]
             test_data.append(advisory)
